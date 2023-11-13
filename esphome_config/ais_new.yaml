@@ -1,0 +1,545 @@
+substitutions:
+  node_name: boneio
+  dir_name: ./
+packages:
+  core:
+    esphome:
+      name: ${node_name}
+      platform: ESP32
+      board: nodemcu-32s
+    i2c:
+      - id: bus_a
+        sda: GPIO14
+        scl: GPIO15
+        scan: true
+        frequency: 400kHz
+      - id: bus_b
+        sda: GPIO17
+        scl: GPIO33
+        scan: true
+        frequency: 400kHz
+    ethernet:
+      id: eth
+      type: LAN8720
+      mdc_pin: GPIO23
+      mdio_pin: GPIO18
+      clk_mode: GPIO0_IN
+      phy_addr: 1
+      power_pin: GPIO16
+  internals:
+    time:
+      - platform: ds1307
+        id: ds1307_time
+        address: 104
+        i2c_id: bus_a
+    sensor:
+      - platform: ina219
+        address: 64
+        i2c_id: bus_a
+        shunt_resistance: 0.1 ohm
+        current:
+          id: ina_current
+          name: ${node_name} INA219 Current
+        power:
+          id: ina_power
+          name: ${node_name} INA219 Power
+        bus_voltage:
+          id: ina_bus_voltage
+          name: ${node_name} INA219 Bus Voltage
+        shunt_voltage:
+          id: ina_shunt_voltage
+          name: ${node_name} INA219 Shunt Voltage
+        max_voltage: 32.0V
+        max_current: 3.2A
+        update_interval: 30s
+    switch:
+      - platform: gpio
+        id: buzzer
+        name: Buzzer
+        pin:
+          number: GPIO2
+          mode:
+            output: true
+          inverted: false
+    pcf8574:
+      - id: pcf_inputs_1to14
+        i2c_id: bus_a
+        address: 32
+        pcf8575: true
+      - id: pcf_inputs_15to28
+        i2c_id: bus_a
+        address: 33
+        pcf8575: true
+      - id: pcf_inputs_28to35_menu
+        i2c_id: bus_a
+        address: 34
+        pcf8575: false
+  temp:
+    external_components:
+      - source: github://btomala/esphome-LM75@v1.0
+        components:
+          - lm75
+    sensor:
+      - platform: lm75
+        id: boneIO_temp
+        name: ${node_name} LM75B Temperature
+        update_interval: 30s
+        i2c_id: bus_b
+  display:
+    sensor:
+      - platform: uptime
+        id: wt32_uptime_seconds
+        update_interval: 60s
+        entity_category: diagnostic
+        on_raw_value:
+          then:
+            - text_sensor.template.publish:
+                id: wt32_uptime
+                state: |-
+                  int seconds = round(id(wt32_uptime_seconds).raw_state);
+                  int days = seconds / (24 * 3600);
+                  seconds = seconds % (24 * 3600);
+                  int hours = seconds / 3600;
+                  seconds = seconds % 3600;
+                  int minutes = seconds /  60;
+                  return (
+                    (days ? to_string(days) + "d " : "") +
+                    (hours ? to_string(hours) + "h " : "") +
+                    (to_string(minutes) + "m")
+                  ).c_str();
+    text_sensor:
+      - platform: template
+        name: ${node_name} Uptime
+        id: wt32_uptime
+        entity_category: diagnostic
+        icon: mdi:clock-start
+    script:
+      - id: screensaver_script
+        mode: restart
+        then:
+          - delay: 30s
+          - display.page.show: screensaver
+          - component.update: oled_display
+    esphome:
+      on_boot:
+        priority: 0
+        then:
+          - display.page.show: first_page
+          - component.update: oled_display
+          - script.execute: screensaver_script
+    binary_sensor:
+      - platform: gpio
+        entity_category: config
+        id: boneIO_button
+        pin:
+          pcf8574: pcf_inputs_28to35_menu
+          number: 7
+          mode:
+            input: true
+          inverted: true
+        on_press:
+          then:
+            - if:
+                condition:
+                  display.is_displaying_page: last_page
+                then:
+                  - display.page.show: first_page
+                  - component.update: oled_display
+                else:
+                  - if:
+                      condition:
+                        display.is_displaying_page: screensaver
+                      then:
+                        - display.page.show: logo_page
+                        - component.update: oled_display
+                        - delay: 500ms
+                        - display.page.show: first_page
+                        - component.update: oled_display
+                      else:
+                        - display.page.show_next: oled_display
+                        - component.update: oled_display
+            - script.execute: screensaver_script
+    display:
+      - platform: ssd1306_i2c
+        id: oled_display
+        model: SH1106 128x64
+        address: 60
+        i2c_id: bus_b
+        contrast: 0.5
+        pages:
+          - id: logo_page
+            lambda: >-
+              it.printf(64,25, id(danubeBig), TextAlign::BASELINE_CENTER,
+              "BoneIO");
+
+              it.printf(64,40, id(dejaVuSmall), TextAlign::BASELINE_CENTER, "take control");
+
+              it.printf(64,50, id(dejaVuSmall), TextAlign::BASELINE_CENTER, "of your home");
+          - id: first_page
+            lambda: >-
+              it.rectangle(0, 0, 126, 15);
+
+              it.printf(64,11, id(danubeSmall), TextAlign::BASELINE_CENTER, "BoneIO");
+
+              it.strftime(64, 25, id(dejaVuSmall), TextAlign::BASELINE_CENTER ,"%c", id(ds1307_time).now());
+
+              it.printf(4, 37, id(dejaVuSmall), TextAlign::BASELINE_LEFT ,"IP addr:");
+
+              it.printf(124, 37, id(dejaVuSmall), TextAlign::BASELINE_RIGHT ,"%s", id(eth).get_ip_address().str().c_str());
+
+              it.printf(4, 49, id(dejaVuSmall), TextAlign::BASELINE_LEFT ,"Uptime:");
+
+              it.printf(124, 49, id(dejaVuSmall), TextAlign::BASELINE_RIGHT ,"%s", id(wt32_uptime).state.c_str());
+
+              it.printf(4, 61, id(dejaVuSmall), TextAlign::BASELINE_LEFT ,"Temperature:");
+
+              it.printf(124, 61, id(dejaVuSmall), TextAlign::BASELINE_RIGHT ,"%.2f°C", id(boneIO_temp).state);
+          - id: last_page
+            lambda: >-
+              it.rectangle(0, 0, 126, 15);
+
+              it.printf(64,11, id(danubeSmall), TextAlign::BASELINE_CENTER, "BoneIO");
+
+              it.printf(4, 25, id(dejaVuSmall), TextAlign::BASELINE_LEFT ,"Current:");
+
+              it.printf(124, 25, id(dejaVuSmall), TextAlign::BASELINE_RIGHT ,"%.3fA", id(ina_current).state);
+
+              it.printf(4, 37, id(dejaVuSmall), TextAlign::BASELINE_LEFT ,"Power:");
+
+              it.printf(124, 37, id(dejaVuSmall), TextAlign::BASELINE_RIGHT ,"%.2fW", id(ina_power).state);
+
+              it.printf(4, 49, id(dejaVuSmall), TextAlign::BASELINE_LEFT ,"Bus Volt:");
+
+              it.printf(124, 49, id(dejaVuSmall), TextAlign::BASELINE_RIGHT ,"%.2fV", id(ina_bus_voltage).state);
+
+              it.printf(4, 61, id(dejaVuSmall), TextAlign::BASELINE_LEFT ,"Shunt Volt:");
+
+              it.printf(124, 61, id(dejaVuSmall), TextAlign::BASELINE_RIGHT ,"%.2fV", id(ina_shunt_voltage).state);
+          - id: screensaver
+            lambda: it.fill(COLOR_OFF);
+    font:
+      - file: ${dir_name}/fonts/DejaVuSans.ttf
+        id: dejaVuSmall
+        size: 9
+      - file: ${dir_name}/fonts/danube__.ttf
+        id: danubeBig
+        size: 20
+      - file: ${dir_name}/fonts/danube__.ttf
+        id: danubeSmall
+        size: 9
+  output:
+    pca9685:
+      - address: 65
+        id: pca_hub_1to16
+        frequency: 500
+        i2c_id: bus_b
+      - address: 66
+        id: pca_hub_17to32
+        frequency: 500
+        i2c_id: bus_b
+    output:
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_1
+        channel: 0
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_2
+        channel: 1
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_3
+        channel: 2
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_4
+        channel: 3
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_5
+        channel: 4
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_6
+        channel: 5
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_7
+        channel: 6
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_8
+        channel: 7
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_9
+        channel: 8
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_10
+        channel: 9
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_11
+        channel: 10
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_12
+        channel: 11
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_13
+        channel: 12
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_14
+        channel: 13
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_15
+        channel: 14
+      - platform: pca9685
+        pca9685_id: pca_hub_1to16
+        id: pca_output_16
+        channel: 15
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_17
+        channel: 0
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_18
+        channel: 1
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_19
+        channel: 2
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_20
+        channel: 3
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_21
+        channel: 4
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_22
+        channel: 5
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_23
+        channel: 6
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_24
+        channel: 7
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_25
+        channel: 8
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_26
+        channel: 9
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_27
+        channel: 10
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_28
+        channel: 11
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_29
+        channel: 12
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_30
+        channel: 13
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_31
+        channel: 14
+      - platform: pca9685
+        pca9685_id: pca_hub_17to32
+        id: pca_output_32
+        channel: 15
+  light:
+    light:
+      - platform: monochromatic
+        output: pca_output_1
+        name: ${node_name} LED 01
+        id: led_1
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_2
+        name: ${node_name} LED 02
+        id: led_2
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_3
+        name: ${node_name} LED 03
+        id: led_3
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_4
+        name: ${node_name} LED 04
+        id: led_4
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_5
+        name: ${node_name} LED 05
+        id: led_5
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_6
+        name: ${node_name} LED 06
+        id: led_6
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_7
+        name: ${node_name} LED 07
+        id: led_7
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_8
+        name: ${node_name} LED 08
+        id: led_8
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_9
+        name: ${node_name} LED 09
+        id: led_9
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_10
+        name: ${node_name} LED 10
+        id: led_10
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_11
+        name: ${node_name} LED 11
+        id: led_11
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_12
+        name: ${node_name} LED 12
+        id: led_12
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_13
+        name: ${node_name} LED 13
+        id: led_13
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_14
+        name: ${node_name} LED 14
+        id: led_14
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_15
+        name: ${node_name} LED 15
+        id: led_15
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_16
+        name: ${node_name} LED 16
+        id: led_16
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_17
+        name: ${node_name} LED 17
+        id: led_17
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_18
+        name: ${node_name} LED 18
+        id: led_18
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_19
+        name: ${node_name} LED 19
+        id: led_19
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_20
+        name: ${node_name} LED 20
+        id: led_20
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_21
+        name: ${node_name} LED 21
+        id: led_21
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_22
+        name: ${node_name} LED 22
+        id: led_22
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_23
+        name: ${node_name} LED 23
+        id: led_23
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_24
+        name: ${node_name} LED 24
+        id: led_24
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_25
+        name: ${node_name} LED 25
+        id: led_25
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_26
+        name: ${node_name} LED 26
+        id: led_26
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_27
+        name: ${node_name} LED 27
+        id: led_27
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_28
+        name: ${node_name} LED 28
+        id: led_28
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_29
+        name: ${node_name} LED 29
+        id: led_29
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_30
+        name: ${node_name} LED 30
+        id: led_30
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_31
+        name: ${node_name} LED 31
+        id: led_31
+        default_transition_length: 2s
+      - platform: monochromatic
+        output: pca_output_32
+        name: ${node_name} LED 32
+        id: led_32
+        default_transition_length: 2s
+logger:
+  baud_rate: 0
+api: null
+ota:
+  password: boneio
+web_server:
+  port: 80
+  local: true
+time:
+  - platform: homeassistant
+    timezone: Europe/Warsaw
+    id: homeassistant_time
+    on_time_sync:
+      then:
+        ds1307.write_time: null

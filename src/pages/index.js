@@ -9,23 +9,36 @@ export default function Home() {
  
   if (error) return <div>failed to load</div>
   if (isLoading) return <div>loading yaml...</div>
-  // console.log(JSON.stringify(data))
+  
+  console.log("---------frontend recived this data------------------")
+  console.log(JSON.stringify(JSON.parse(data), null, 2))
+  console.log("---------frontend recived this data------------------")
 
-  let nodesList = [];
-  for (const property in data) {
-    // console.log(`${property}: ${data[property]}`);
-    nodesList.push(`{${property}: ${data[property]}}`);
-  }
-  console.log(nodesList)
-  nodesList.map((node) => (
-    console.log(node)
-  ))
+  // let nodesList = [];
+  // for (const property in data) {
+  //   // console.log(`${property}: ${data[property]}`);
+  //   nodesList.push(`{${property}: ${data[property]}}`);
+  // }
+  // console.log(nodesList)
+  // nodesList.map((node) => (
+  //   console.log(node)
+  // ))
+   
   return (
-    <>
-        {nodesList.map((node, index) => (
-          <Node key={index}>{JSON.stringify(node)}</Node>
-        ))}
-    </>
-  )
+        <>
+
+          {data}
+
+        </>
+       )
+
+
+  // return (
+  //   <>
+  //       {nodesList.map((node, index) => (
+  //         <Node key={index}>{JSON.stringify(node)}</Node>
+  //       ))}
+  //   </>
+  // )
 }
 
