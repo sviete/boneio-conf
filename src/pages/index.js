@@ -1,5 +1,5 @@
 import useSWR from 'swr'
-import Node from './node'
+import MainNode from './components/MainNode'
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
@@ -14,31 +14,20 @@ export default function Home() {
   console.log(JSON.stringify(JSON.parse(data), null, 2))
   console.log("---------frontend recived this data------------------")
 
-  // let nodesList = [];
-  // for (const property in data) {
-  //   // console.log(`${property}: ${data[property]}`);
-  //   nodesList.push(`{${property}: ${data[property]}}`);
-  // }
-  // console.log(nodesList)
-  // nodesList.map((node) => (
-  //   console.log(node)
-  // ))
-   
+  let configData = JSON.parse(data)
+  let nodesList = []
+  for (let key in configData) {  
+    let object = {}
+    object[key] = configData[key]
+    nodesList.push(object)
+  }
+
   return (
-        <>
-
-          {data}
-
-        </>
-       )
-
-
-  // return (
-  //   <>
-  //       {nodesList.map((node, index) => (
-  //         <Node key={index}>{JSON.stringify(node)}</Node>
-  //       ))}
-  //   </>
-  // )
+    <>
+        {nodesList.map((node, index) => (
+          <MainNode key={index} data={node} />
+        ))}
+    </>
+  )
 }
 
