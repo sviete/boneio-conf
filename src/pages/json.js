@@ -26,7 +26,6 @@ export default function Json() {
 
   return (
         <>
-
         <JSONEditor
           data={JSON.parse(data)}
           collapsible

@@ -1,0 +1,18 @@
+.node {
+    width: 80%;
+    padding: 2em;
+}
+
+.nodeTitle {
+    border: solid red 1px;
+    background-color: black;
+    color: white;
+    text-align: center;
+    font-weight: bold;
+    padding: 10px;
+}
+
+.nodeBody {
+    border: solid black 1px;
+    width: 100%;
+}

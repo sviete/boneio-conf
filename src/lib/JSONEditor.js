@@ -213,6 +213,7 @@ export default class JSONEditor extends React.Component {
         />
       );
     } else if (isString(data)) {
+      let inputType = data.length < 20 ? "text" : "textarea"
       elems.push(
         <Input
           key={getKey("input", currentKey, parentKeyPath, marginLeft)}
@@ -223,7 +224,7 @@ export default class JSONEditor extends React.Component {
           showRemoveButton={this.props.showRemoveButton}
           showAddButton={this.props.showAddButton}
           label={label}
-          type="text"
+          type={inputType}
           parent={parent}
           currentKey={currentKey}
           onChange={this.dataChanged.bind(this, currentKey, parent, "text")}

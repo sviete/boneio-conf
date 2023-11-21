@@ -1,5 +1,5 @@
 import useSWR from 'swr'
-import MainNode from './components/MainNode'
+import Node from './components/Node'
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
@@ -25,7 +25,7 @@ export default function Home() {
   return (
     <>
         {nodesList.map((node, index) => (
-          <MainNode key={index} data={node} />
+          <Node key={index} data={node} />
         ))}
     </>
   )
