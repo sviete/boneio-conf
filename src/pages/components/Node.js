@@ -11,12 +11,29 @@ export default function MainNode({data}) {
     });
     console.log(isNested)
 
-return (
-    <>
-    <div className={styles.node}>
-    <Link href={{ pathname: "node", query: { object: JSON.stringify(value) } }} ><div className={styles.nodeTitle}>{key}</div></Link>
-    <div className={styles.nodeBody}>{JSON.stringify(value)}</div>
-    </div>
-    </>
-)
+    if (isNested) {
+    return (
+        
+        <>        
+    
+            <div className={styles.node}>
+            <Link href={{ pathname: "node", query: { object: JSON.stringify(value) } }} ><div className={styles.nodeTitle}>{key}</div></Link>
+            <div className={styles.nodeBody}>{JSON.stringify(value)}</div>
+            </div>
+        </>
+    )
+    }
+    
+    else {
+        return (
+            <div>
+                {Object.keys(data).map((key) => (                    
+                    <div key={key}>
+                        <div>Key: {key}</div>
+                        <div>Value: {JSON.stringify(data[key])}</div>
+                    </div>
+            ))}
+        </div>
+        );
+    }
 }
